@@ -1,69 +1,48 @@
-pragma solidity ^0.6.0;
+type Product = {
+   creator : Principal;  
+   productName : Text;
+   productId : Nat;
+   date : Text;
+   totalStates : Nat;
+   positions : HashMap.HashMap<Nat, State>;
+};
 
-contract SupplyChain {
-    
-    event Added(uint256 index);
-    
-    struct State{
-        string description;
-        address person;
-    }
-    
-    struct Product{
-        address creator;
-        string productName;
-        uint256 productId;
-        string date;
-        uint256 totalStates;
-        mapping (uint256 => State) positions;
-    }
-    
-    mapping(uint => Product) allProducts;
-    uint256 items=0;
-    
-    function concat(string memory _a, string memory _b) public returns (string memory){
-        bytes memory bytes_a = bytes(_a);
-        bytes memory bytes_b = bytes(_b);
-        string memory length_ab = new string(bytes_a.length + bytes_b.length);
-        bytes memory bytes_c = bytes(length_ab);
-        uint k = 0;
-        for (uint i = 0; i < bytes_a.length; i++) bytes_c[k++] = bytes_a[i];
-        for (uint i = 0; i < bytes_b.length; i++) bytes_c[k++] = bytes_b[i];
-        return string(bytes_c);
-    }
-    
-    function newItem(string memory _text, string memory _date) public returns (bool) {
-        Product memory newItem = Product({creator: msg.sender, totalStates: 0,productName: _text, productId: items, date: _date});
-        allProducts[items]=newItem;
-        items = items+1;
-        emit Added(items-1);
-        return true;
-    }
-    
-    function addState(uint _productId, string memory info) public returns (string memory) {
-        require(_productId<=items);
-        
-        State memory newState = State({person: msg.sender, description: info});
-        
-        allProducts[_productId].positions[ allProducts[_productId].totalStates ]=newState;
-        
-        allProducts[_productId].totalStates = allProducts[_productId].totalStates +1;
-        return info;
-    }
-    
-    function searchProduct(uint _productId) public returns (string memory) {
+type State  = {
+   description : Text;
+   person : Principal;       
+};
 
-        require(_productId<=items);
-        string memory output="Product Name: ";
-        output=concat(output, allProducts[_productId].productName);
-        output=concat(output, "<br>Manufacture Date: ");
-        output=concat(output, allProducts[_productId].date);
-        
-        for (uint256 j=0; j<allProducts[_productId].totalStates; j++){
-            output=concat(output, allProducts[_productId].positions[j].description);
-        }
-        return output;
-        
-    }
-    
-}
+var allProducts : HashMap.HashMap<Nat, Product> = HashMap.HashMap<Nat, Product>(0, Nat.equal, Nat.hash);
+var items : Nat = 0;  
+
+public query func searchProduct(productId : Nat) : async Text {
+    let product : ?Product = allProducts.get(productId);
+    switch(product) {
+       case(?product) {               
+           var output : Text = "Product Name: " # product.productName;  
+           output #= "<br>Manufacture Date: " #  product.date;  
+           for ((stateIndex,state) in product.positions.items()){
+               output #= state.description;
+           }    
+           return output;
+       };
+       case(null) return "Product ID not found."; 
+    }      
+};     
+
+public shared(msg) func newItem(text: Text, date: Text) : async Bool {
+    items += 1;
+
+    // Create new product  
+    let newItem : Product = { 
+        creator = msg.principal;
+        productName = text;                      
+        productId = items;  
+        date = date;       
+        totalStates = 0;
+        positions = HashMap.HashMap<Nat, State>(0, Nat.equal, Nat.hash);
+    };
+    allProducts.put(items, newItem);        
+    log( Nat.toText(items-1) # " added.");   
+    return true;            
+};
